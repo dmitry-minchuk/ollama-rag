@@ -1,16 +1,36 @@
+#!/usr/bin/env python3
+import sys
+import json
 import os
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from langchain_community.vectorstores import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
-from typing import List, Dict, Any, Optional
-from fastapi.responses import JSONResponse
+from typing import Dict, Any, Optional
 
-# Initialize FastAPI
-app = FastAPI()
+# Auto-activate virtual environment if not already active
+def ensure_venv():
+    """Ensure we're running in the virtual environment"""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    venv_path = os.path.join(script_dir, "venv")
+    venv_python = os.path.join(venv_path, "bin", "python")
+    
+    # Check if we're already in virtual environment
+    if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
+        return  # Already in venv
+    
+    # Check if venv exists and re-run with venv python
+    if os.path.exists(venv_python):
+        os.execv(venv_python, [venv_python, __file__] + sys.argv[1:])
+    else:
+        print(f"Error: Virtual environment not found at {venv_path}", file=sys.stderr)
+        print("Please run setup_mcp.sh first", file=sys.stderr)
+        sys.exit(1)
+
+# Ensure virtual environment before importing dependencies
+ensure_venv()
+
+from langchain_chroma import Chroma
+from langchain_huggingface import HuggingFaceEmbeddings
 
 # ChromaDB path
-CHROMA_DB_PATH = "../chroma_db"
+CHROMA_DB_PATH = "/Users/dmitryminchuk/Projects/ai/mcp/ollama-rag/chroma_db"
 COLLECTION_NAME = "codebase"
 
 # Initialize embeddings
@@ -23,29 +43,14 @@ vector_store = Chroma(
     persist_directory=CHROMA_DB_PATH
 )
 
-# JSON-RPC request model
-class JsonRpcRequest(BaseModel):
-    jsonrpc: str = "2.0"
-    method: str
-    params: Optional[Dict[str, Any]] = None
-    id: Optional[Any] = None
-
-# JSON-RPC response model
-class JsonRpcResponse(BaseModel):
-    jsonrpc: str = "2.0"
-    result: Optional[Any] = None
-    error: Optional[Any] = None
-    id: Optional[Any] = None
-
-# MCP protocol endpoint
-@app.post("/")
-async def handle_mcp_request(request: JsonRpcRequest):
+def handle_mcp_request(request: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle MCP JSON-RPC request"""
     try:
-        method = request.method
-        params = request.params or {}
+        method = request.get("method")
+        params = request.get("params", {})
+        request_id = request.get("id")
 
         if method == "tools/list":
-            # Return available tools
             result = {
                 "tools": [
                     {
@@ -69,26 +74,27 @@ async def handle_mcp_request(request: JsonRpcRequest):
                     }
                 ]
             }
-            return JsonRpcResponse(result=result, id=request.id)
+            return {"jsonrpc": "2.0", "result": result, "id": request_id}
 
         elif method == "tools/call":
-            # Call the code_search tool
             tool_name = params.get("name")
             if tool_name != "code_search":
-                return JsonRpcResponse(
-                    error={"code": -32601, "message": f"Tool {tool_name} not found"},
-                    id=request.id
-                )
+                return {
+                    "jsonrpc": "2.0",
+                    "error": {"code": -32601, "message": f"Tool {tool_name} not found"},
+                    "id": request_id
+                }
 
             arguments = params.get("arguments", {})
             query = arguments.get("query")
             limit = arguments.get("limit", 5)
 
             if not query:
-                return JsonRpcResponse(
-                    error={"code": -32602, "message": "Missing query parameter in arguments"},
-                    id=request.id
-                )
+                return {
+                    "jsonrpc": "2.0",
+                    "error": {"code": -32602, "message": "Missing query parameter in arguments"},
+                    "id": request_id
+                }
 
             # Search chunks in ChromaDB
             docs = vector_store.similarity_search(query, k=limit)
@@ -108,10 +114,9 @@ async def handle_mcp_request(request: JsonRpcRequest):
                 "content": content,
                 "isError": False
             }
-            return JsonRpcResponse(result=result, id=request.id)
+            return {"jsonrpc": "2.0", "result": result, "id": request_id}
 
         elif method == "resources/list":
-            # Return list of unique files from metadata
             try:
                 docs = vector_store.get()
                 sources = set()
@@ -133,22 +138,23 @@ async def handle_mcp_request(request: JsonRpcRequest):
                         } for source in sorted(sources)
                     ]
                 }
-                return JsonRpcResponse(result=result, id=request.id)
+                return {"jsonrpc": "2.0", "result": result, "id": request_id}
 
             except Exception as e:
-                return JsonRpcResponse(
-                    error={"code": -32000, "message": f"Failed to list resources: {str(e)}"},
-                    id=request.id
-                )
+                return {
+                    "jsonrpc": "2.0",
+                    "error": {"code": -32000, "message": f"Failed to list resources: {str(e)}"},
+                    "id": request_id
+                }
 
         elif method == "resources/read":
-            # Read resource by URI
             uri = params.get("uri")
             if not uri:
-                return JsonRpcResponse(
-                    error={"code": -32602, "message": "Missing uri parameter"},
-                    id=request.id
-                )
+                return {
+                    "jsonrpc": "2.0",
+                    "error": {"code": -32602, "message": "Missing uri parameter"},
+                    "id": request_id
+                }
 
             # Extract file path from URI
             if uri.startswith("file://"):
@@ -157,7 +163,6 @@ async def handle_mcp_request(request: JsonRpcRequest):
                 file_path = uri
 
             try:
-                # Find documents by file path
                 docs = vector_store.get()
                 documents = docs.get("documents", [])
                 metadatas = docs.get("metadatas", [])
@@ -172,10 +177,11 @@ async def handle_mcp_request(request: JsonRpcRequest):
                         })
 
                 if not file_chunks:
-                    return JsonRpcResponse(
-                        error={"code": -32602, "message": f"Resource {uri} not found"},
-                        id=request.id
-                    )
+                    return {
+                        "jsonrpc": "2.0",
+                        "error": {"code": -32602, "message": f"Resource {uri} not found"},
+                        "id": request_id
+                    }
 
                 # Combine all chunks from the file
                 combined_content = "\n\n".join([chunk["content"] for chunk in file_chunks])
@@ -189,51 +195,57 @@ async def handle_mcp_request(request: JsonRpcRequest):
                         }
                     ]
                 }
-                return JsonRpcResponse(result=result, id=request.id)
+                return {"jsonrpc": "2.0", "result": result, "id": request_id}
 
             except Exception as e:
-                return JsonRpcResponse(
-                    error={"code": -32000, "message": f"Failed to read resource: {str(e)}"},
-                    id=request.id
-                )
+                return {
+                    "jsonrpc": "2.0",
+                    "error": {"code": -32000, "message": f"Failed to read resource: {str(e)}"},
+                    "id": request_id
+                }
 
         else:
-            return JsonRpcResponse(
-                error={"code": -32601, "message": f"Method {method} not found"},
-                id=request.id
-            )
+            return {
+                "jsonrpc": "2.0",
+                "error": {"code": -32601, "message": f"Method {method} not found"},
+                "id": request_id
+            }
 
     except Exception as e:
-        return JsonRpcResponse(
-            error={"code": -32000, "message": f"Server error: {str(e)}"},
-            id=request.id
-        )
+        return {
+            "jsonrpc": "2.0",
+            "error": {"code": -32000, "message": f"Server error: {str(e)}"},
+            "id": request_id
+        }
 
-# Compatibility with custom /query endpoint
-class QueryRequest(BaseModel):
-    query: str
-    limit: int = 5
-
-@app.post("/query")
-async def query_codebase(request: QueryRequest):
+def main():
+    """Main stdio loop"""
     try:
-        docs = vector_store.similarity_search(request.query, k=request.limit)
-        response = [
-            {
-                "content": doc.page_content,
-                "metadata": doc.metadata
-            } for doc in docs
-        ]
-        return {"chunks": response}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Query processing error: {str(e)}")
+        for line in sys.stdin:
+            line = line.strip()
+            if not line:
+                continue
 
-# Health check endpoint
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy", "vector_store": "connected"}
+            try:
+                request = json.loads(line)
+                response = handle_mcp_request(request)
+                print(json.dumps(response), flush=True)
+            except json.JSONDecodeError as e:
+                error_response = {
+                    "jsonrpc": "2.0",
+                    "error": {"code": -32700, "message": f"Parse error: {str(e)}"},
+                    "id": None
+                }
+                print(json.dumps(error_response), flush=True)
+            except Exception as e:
+                error_response = {
+                    "jsonrpc": "2.0",
+                    "error": {"code": -32000, "message": f"Server error: {str(e)}"},
+                    "id": None
+                }
+                print(json.dumps(error_response), flush=True)
+    except KeyboardInterrupt:
+        pass
 
-# Run server
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    main()
