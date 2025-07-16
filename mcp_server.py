@@ -420,7 +420,28 @@ def handle_mcp_request(request: Dict[str, Any]) -> Dict[str, Any]:
         params = request.get("params", {})
         request_id = request.get("id")
 
-        if method == "tools/list":
+        if method == "initialize":
+            # Handle MCP initialization - required for handshake
+            client_info = params.get("clientInfo", {})
+            protocol_version = params.get("protocolVersion", "2024-11-05")
+            
+            # Log initialization for debugging
+            print(f"MCP Initialize: client={client_info.get('name', 'unknown')} protocol={protocol_version}", file=sys.stderr)
+            
+            result = {
+                "protocolVersion": protocol_version,
+                "capabilities": {
+                    "tools": {},
+                    "resources": {}
+                },
+                "serverInfo": {
+                    "name": "ollama-rag",
+                    "version": "1.0.0"
+                }
+            }
+            return {"jsonrpc": "2.0", "result": result, "id": request_id}
+
+        elif method == "tools/list":
             result = {
                 "tools": [
                     {
