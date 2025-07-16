@@ -3,5 +3,6 @@ __pycache__/
 chroma_db*/
 pdf-files.txt
 *.json
+*.pkl
 Modelfile-generated
 .idea/
