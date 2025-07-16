@@ -55,13 +55,47 @@ CODEBASE_PATHS = [
 ]
 ```
 
+## Graph Visualization
+
+Interactive web interface to explore code relationships:
+
+```bash
+# Start the graph visualizer
+python graph_visualizer.py
+```
+
+Open http://localhost:5001 in your browser to access the **Graph Explorer**:
+
+### Features:
+- 🔍 **Real-time Search**: Instant search across 5,616 nodes (files, classes, methods)
+- 📊 **Interactive Visualization**: D3.js powered graph with 19,113 relationships
+- 🎯 **Smart Navigation**: Click any node to center and explore its connections
+- 📈 **Detailed Analytics**: View node statistics and relationship breakdowns
+- 🔧 **Interactive Controls**: Adjust exploration radius, zoom, pan, and drag nodes
+- 🎨 **Color-coded Nodes**: Red (center), Teal (files), Blue (classes/methods)
+
+### Graph Statistics:
+- **Total Nodes**: 5,616 (files, classes, methods)
+- **Total Edges**: 19,113 (relationships)
+- **Relationship Types**: 7,265 imports, 557 inheritance, 11,291 method calls
+- **Classes**: 361 across 678 files
+
+### How to Use:
+1. **Search**: Type in the search box to find files or classes
+2. **Explore**: Click on any search result to visualize its relationships
+3. **Navigate**: Use radius slider to control how many connection hops to show
+4. **Details**: Click nodes to see detailed incoming/outgoing relationships
+5. **Control**: Drag nodes, zoom, and pan to explore the graph structure
+
 ## Files
 
 - `mcp_server.py` - Main MCP server with graph-enhanced search
 - `ingest-code.py` - Codebase indexing script
+- `graph_visualizer.py` - Interactive graph visualization tool
 - `requirements.txt` - Python dependencies
 - `chroma_db/` - Vector database storage
 - `code_graph.pkl` - Serialized code relationship graph
+- `templates/` - HTML templates for web interface
 
 ## Search Results
 
