@@ -6,10 +6,19 @@ from langchain_community.document_loaders import DirectoryLoader, TextLoader
 
 # Paths to codebases for indexing
 CODEBASE_PATHS = [
-    "/Users/dmitryminchuk/Projects/eis/openl-tests",
-    # Add additional paths here:
-    # "/path/to/another/codebase",
-    # "/path/to/third/codebase",
+#    "/Users/dmitryminchuk/Projects/eis/openl-tests",
+#    "/Users/dmitryminchuk/Projects/java-taf-template",
+    "/Users/dmitryminchuk/Projects/python-taf-bp"
+]
+
+# Folders to exclude from indexing
+EXCLUDE_FOLDERS = [
+    "node_modules",
+    "venv",
+    "__pycache__",
+    "dist",
+    "build",
+    ".git"
 ]
 
 # Text file loader configuration
@@ -47,7 +56,10 @@ for codebase_path in CODEBASE_PATHS:
     current_path_files = 0
     current_path_docs = 0
     
-    for root, _, files in os.walk(codebase_path):
+    for root, dirs, files in os.walk(codebase_path):
+        # Modify dirs in-place to exclude specified folders
+        dirs[:] = [d for d in dirs if d not in EXCLUDE_FOLDERS]
+        
         for file in files:
             if file.endswith(('.py', '.js', '.cpp', '.java', '.txt', '.properties')):
                 file_path = os.path.join(root, file)
@@ -71,7 +83,6 @@ if not documents:
 print(f"\nTotal processed paths: {len(processed_paths)}")
 print(f"Total found files: {len(found_files)}")
 print(f"Total loaded documents: {len(documents)}")
-
 
 # Split into chunks
 text_splitter = RecursiveCharacterTextSplitter(
