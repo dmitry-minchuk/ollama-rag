@@ -1,5 +1,12 @@
 # Graph-Enhanced RAG MCP Server
 
+use-mcp ollama-rag
+# Use ollama-rag to understand codebase in depth using Vector and Graph embeddings
+use-mcp playwright
+# Use it for more UI understanding
+use-mcp context7
+# Use context7 for searching documentation
+
 A Model Context Protocol (MCP) server that provides graph-enhanced code search capabilities by combining vector similarity search with code relationship analysis.
 
 ## Features

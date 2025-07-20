@@ -11,6 +11,9 @@ import pickle
 from typing import Dict, List, Any
 from pathlib import Path
 
+# Configuration
+GRAPH_PATH = "/Users/dmitryminchuk/Projects/ai/mcp/ollama-rag/code_graph.pkl"
+
 # Auto-activate virtual environment if not already active
 def ensure_venv():
     """Ensure we're running in the virtual environment"""
@@ -38,9 +41,6 @@ except ImportError:
     print("Missing dependencies. Please install:")
     print("pip install flask")
     sys.exit(1)
-
-# Configuration
-GRAPH_PATH = "/Users/dmitryminchuk/Projects/ai/mcp/ollama-rag/code_graph.pkl"
 
 class GraphVisualizer:
     """Graph visualization and analysis"""

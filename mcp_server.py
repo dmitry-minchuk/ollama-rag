@@ -7,11 +7,9 @@ Combines vector similarity search with code relationship graphs
 import sys
 import json
 import os
-import re
 import pickle
-from typing import Dict, Any, List, Set, Tuple, Optional
+from typing import Dict, Any, List, Set, Tuple
 from dataclasses import dataclass
-from pathlib import Path
 
 # Auto-activate virtual environment if not already active
 def ensure_venv():
@@ -55,160 +53,6 @@ class CodeRelationship:
     context: str
 
 
-class JavaCodeParser:
-    """Parses Java code to extract relationships"""
-    
-    def __init__(self):
-        self.patterns = {
-            'import': re.compile(r'import\s+(?:static\s+)?([a-zA-Z_][a-zA-Z0-9_.]*(?:\.\*)?);'),
-            'package': re.compile(r'package\s+([a-zA-Z_][a-zA-Z0-9_.]*);'),
-            'class': re.compile(r'(?:public\s+|private\s+|protected\s+)?(?:abstract\s+|final\s+)?class\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:extends\s+([a-zA-Z_][a-zA-Z0-9_]*))?\s*(?:implements\s+([a-zA-Z_][a-zA-Z0-9_,\s]*))?\s*\{'),
-            'method': re.compile(r'(?:public\s+|private\s+|protected\s+)?(?:static\s+)?(?:final\s+)?(?:synchronized\s+)?(?:abstract\s+)?(?:[a-zA-Z_][a-zA-Z0-9_<>[\],\s]*\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\s*\([^)]*\)\s*(?:throws\s+[^{]*)?[{;]'),
-            'method_call': re.compile(r'([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s*\([^)]*\)'),
-        }
-    
-    def parse_file(self, file_path: str, content: str) -> List[CodeRelationship]:
-        """Parse a Java file and extract relationships"""
-        relationships = []
-        lines = content.split('\n')
-        
-        # Extract basic info
-        package_name = self._extract_package(content)
-        class_info = self._extract_class_info(content, lines)
-        imports = self._extract_imports(content, lines)
-        
-        # Add import relationships
-        for imp in imports:
-            relationships.append(CodeRelationship(
-                source_file=file_path,
-                target_file=imp['import'].replace('.', '/') + '.java',
-                relationship_type='import',
-                source_element=class_info.get('name', ''),
-                target_element=imp['import'].split('.')[-1],
-                line_number=imp['line'],
-                context=imp['context']
-            ))
-        
-        # Add inheritance relationships
-        if class_info.get('extends'):
-            relationships.append(CodeRelationship(
-                source_file=file_path,
-                target_file='',
-                relationship_type='extends',
-                source_element=class_info['name'],
-                target_element=class_info['extends'],
-                line_number=class_info['line'],
-                context=class_info['context']
-            ))
-        
-        # Add method calls
-        methods = self._extract_methods(content, lines)
-        for method in methods:
-            method_calls = self._extract_method_calls(method['content'])
-            for call in method_calls:
-                relationships.append(CodeRelationship(
-                    source_file=file_path,
-                    target_file='',
-                    relationship_type='calls',
-                    source_element=f"{class_info.get('name', '')}.{method['name']}",
-                    target_element=call['method'],
-                    line_number=method['line'] + call['line_offset'],
-                    context=call['context']
-                ))
-        
-        return relationships
-    
-    def _extract_package(self, content: str) -> str:
-        match = self.patterns['package'].search(content)
-        return match.group(1) if match else ''
-    
-    def _extract_imports(self, content: str, lines: List[str]) -> List[Dict]:
-        imports = []
-        for i, line in enumerate(lines):
-            match = self.patterns['import'].search(line)
-            if match:
-                imports.append({
-                    'import': match.group(1),
-                    'line': i + 1,
-                    'context': line.strip()
-                })
-        return imports
-    
-    def _extract_class_info(self, content: str, lines: List[str]) -> Dict:
-        for i, line in enumerate(lines):
-            match = self.patterns['class'].search(line)
-            if match:
-                extends = match.group(2) if match.group(2) else None
-                implements = []
-                if match.group(3):
-                    implements = [impl.strip() for impl in match.group(3).split(',')]
-                
-                return {
-                    'name': match.group(1),
-                    'extends': extends,
-                    'implements': implements,
-                    'line': i + 1,
-                    'context': line.strip()
-                }
-        return {}
-    
-    def _extract_methods(self, content: str, lines: List[str]) -> List[Dict]:
-        methods = []
-        for i, line in enumerate(lines):
-            match = self.patterns['method'].search(line)
-            if match and not line.strip().startswith('//'):
-                method_content = self._extract_method_body(lines, i)
-                methods.append({
-                    'name': match.group(1),
-                    'line': i + 1,
-                    'content': method_content
-                })
-        return methods
-    
-    def _extract_method_body(self, lines: List[str], start_line: int) -> str:
-        body_lines = []
-        brace_count = 0
-        started = False
-        
-        for i in range(start_line, len(lines)):
-            line = lines[i]
-            if '{' in line:
-                started = True
-                brace_count += line.count('{')
-            if started:
-                body_lines.append(line)
-                brace_count += line.count('{') - line.count('}')
-                if brace_count == 0:
-                    break
-        
-        return '\n'.join(body_lines)
-    
-    def _extract_method_calls(self, method_content: str) -> List[Dict]:
-        calls = []
-        lines = method_content.split('\n')
-        
-        for i, line in enumerate(lines):
-            if line.strip().startswith('//') or line.strip().startswith('/*'):
-                continue
-                
-            matches = self.patterns['method_call'].finditer(line)
-            for match in matches:
-                method_call = match.group(1)
-                if self._is_valid_method_call(method_call):
-                    calls.append({
-                        'method': method_call,
-                        'line_offset': i,
-                        'context': line.strip()
-                    })
-        
-        return calls
-    
-    def _is_valid_method_call(self, method_call: str) -> bool:
-        keywords = {'if', 'for', 'while', 'switch', 'catch', 'new', 'this', 'super'}
-        first_part = method_call.split('.')[0]
-        return first_part not in keywords and not first_part.isupper()
-
-
 class CodeGraph:
     """Manages the code relationship graph"""
     
@@ -216,30 +60,6 @@ class CodeGraph:
         self.graph = nx.DiGraph()
         self.file_to_classes = {}
         self.class_to_file = {}
-        
-    def add_relationships(self, relationships: List[CodeRelationship]):
-        """Add relationships to the graph"""
-        for rel in relationships:
-            self.graph.add_node(rel.source_file, type='file')
-            if rel.target_file:
-                self.graph.add_node(rel.target_file, type='file')
-            
-            self.graph.add_edge(
-                rel.source_file,
-                rel.target_file or rel.target_element,
-                type=rel.relationship_type,
-                source_element=rel.source_element,
-                target_element=rel.target_element,
-                line_number=rel.line_number,
-                context=rel.context
-            )
-            
-            if rel.source_element and '.' in rel.source_element:
-                class_name = rel.source_element.split('.')[0]
-                self.class_to_file[class_name] = rel.source_file
-                if rel.source_file not in self.file_to_classes:
-                    self.file_to_classes[rel.source_file] = set()
-                self.file_to_classes[rel.source_file].add(class_name)
     
     def find_related_files(self, file_path: str, max_hops: int = 2) -> Set[str]:
         """Find files related to the given file within max_hops"""
@@ -268,14 +88,6 @@ class CodeGraph:
         
         return related
     
-    def save_graph(self, file_path: str):
-        with open(file_path, 'wb') as f:
-            pickle.dump({
-                'graph': self.graph,
-                'file_to_classes': self.file_to_classes,
-                'class_to_file': self.class_to_file
-            }, f)
-    
     def load_graph(self, file_path: str):
         with open(file_path, 'rb') as f:
             data = pickle.load(f)
@@ -298,24 +110,7 @@ class GraphEnhancedRAG:
         self.code_graph = CodeGraph()
         if graph_path and os.path.exists(graph_path):
             self.code_graph.load_graph(graph_path)
-        
-        self.parser = JavaCodeParser()
     
-    def build_graph_from_documents(self, documents: List[Document]):
-        """Build code graph from documents"""
-        print("Building code relationship graph...", file=sys.stderr)
-        
-        all_relationships = []
-        for doc in documents:
-            if doc.metadata.get('source', '').endswith('.java'):
-                relationships = self.parser.parse_file(
-                    doc.metadata['source'],
-                    doc.page_content
-                )
-                all_relationships.extend(relationships)
-        
-        self.code_graph.add_relationships(all_relationships)
-        print(f"Built graph with {len(all_relationships)} relationships", file=sys.stderr)
     
     def hybrid_search(self, query: str, limit: int = 5, use_graph: bool = True) -> List[Dict]:
         """Perform hybrid vector + graph search"""
@@ -387,28 +182,17 @@ class GraphEnhancedRAG:
             })
         
         return formatted
-    
-    def save_graph(self, file_path: str):
-        """Save the code graph"""
-        self.code_graph.save_graph(file_path)
 
 
 # Initialize the enhanced RAG system
 print("Initializing Graph-Enhanced RAG system...", file=sys.stderr)
 rag_system = GraphEnhancedRAG(CHROMA_DB_PATH, GRAPH_PATH)
 
-# Build graph if it doesn't exist
+# Check if graph exists
 if not os.path.exists(GRAPH_PATH):
-    print("Building code graph from documents...", file=sys.stderr)
-    docs = rag_system.vector_store.get()
-    documents = []
-    for i, content in enumerate(docs.get('documents', [])):
-        metadata = docs.get('metadatas', [])[i] if i < len(docs.get('metadatas', [])) else {}
-        documents.append(Document(page_content=content, metadata=metadata))
-    
-    rag_system.build_graph_from_documents(documents)
-    rag_system.save_graph(GRAPH_PATH)
-    print("Code graph built and saved!", file=sys.stderr)
+    print("Warning: Code graph not found. Please run 'python ingest-code.py' to build the graph.", file=sys.stderr)
+else:
+    print("Code graph loaded successfully!", file=sys.stderr)
 
 print("Graph-Enhanced RAG system ready!", file=sys.stderr)
 
