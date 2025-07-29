@@ -12,16 +12,17 @@ from langchain.schema import Document
 
 # Configuration - Paths to codebases for indexing
 CODEBASE_PATHS = [
-    # "/Users/dmitryminchuk/Projects/eis/openl-tests",
-    # "/Users/dmitryminchuk/Projects/java-taf-template",
-    # "/Users/dmitryminchuk/Projects/python-taf-bp",
-    "/Users/dmitryminchuk/Projects/ai/mcp/ollama-rag",
+#     "/Users/dmitryminchuk/Projects/eis/openl-tests",
+     "/Users/dmitryminchuk/Projects/java-taf-template",
+#     "/Users/dmitryminchuk/Projects/python-taf-bp",
+#    "/Users/dmitryminchuk/Projects/ai/mcp/ollama-rag",
 ]
 
 # Folders to exclude from indexing
 EXCLUDE_FOLDERS = [
     "node_modules",
     "venv",
+    "target",
     "__pycache__",
     "dist",
     "build",
@@ -371,6 +372,8 @@ class JavaCodeParser:
             'class': re.compile(r'(?:public\s+|private\s+|protected\s+)?(?:abstract\s+|final\s+)?class\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:extends\s+([a-zA-Z_][a-zA-Z0-9_]*))?\s*(?:implements\s+([a-zA-Z_][a-zA-Z0-9_,\s]*))?\s*\{'),
             'method': re.compile(r'(?:public\s+|private\s+|protected\s+)?(?:static\s+)?(?:final\s+)?(?:synchronized\s+)?(?:abstract\s+)?(?:[a-zA-Z_][a-zA-Z0-9_<>[\],\s]*\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\s*\([^)]*\)\s*(?:throws\s+[^{]*)?[{;]'),
             'method_call': re.compile(r'([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s*\([^)]*\)'),
+            'constructor_call': re.compile(r'new\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\([^)]*\)'),
+            'field_assignment': re.compile(r'([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*new\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\([^)]*\)'),
         }
     
     def parse_file(self, file_path: str, content: str) -> List[CodeRelationship]:
@@ -420,6 +423,32 @@ class JavaCodeParser:
                     target_element=call['method'],
                     line_number=method['line'] + call['line_offset'],
                     context=call['context']
+                ))
+            
+            # Add constructor calls from method content
+            constructor_calls = self._extract_constructor_calls(method['content'])
+            for call in constructor_calls:
+                relationships.append(CodeRelationship(
+                    source_file=file_path,
+                    target_file='',
+                    relationship_type='instantiates',
+                    source_element=f"{class_info.get('name', '')}.{method['name']}",
+                    target_element=call['constructor'],
+                    line_number=method['line'] + call['line_offset'],
+                    context=call['context']
+                ))
+            
+            # Add field assignments from method content
+            field_assignments = self._extract_field_assignments(method['content'])
+            for assignment in field_assignments:
+                relationships.append(CodeRelationship(
+                    source_file=file_path,
+                    target_file='',
+                    relationship_type='assigns',
+                    source_element=f"{class_info.get('name', '')}.{assignment['field']}",
+                    target_element=assignment['constructor'],
+                    line_number=method['line'] + assignment['line_offset'],
+                    context=assignment['context']
                 ))
         
         return relationships
@@ -513,6 +542,55 @@ class JavaCodeParser:
         keywords = {'if', 'for', 'while', 'switch', 'catch', 'new', 'this', 'super'}
         first_part = method_call.split('.')[0]
         return first_part not in keywords and not first_part.isupper()
+    
+    def _extract_constructor_calls(self, method_content: str) -> List[Dict]:
+        """Extract constructor calls (new ClassName()) from method content"""
+        calls = []
+        lines = method_content.split('\n')
+        
+        for i, line in enumerate(lines):
+            if line.strip().startswith('//') or line.strip().startswith('/*'):
+                continue
+                
+            matches = self.patterns['constructor_call'].finditer(line)
+            for match in matches:
+                constructor_name = match.group(1)
+                if self._is_valid_constructor_call(constructor_name):
+                    calls.append({
+                        'constructor': constructor_name,
+                        'line_offset': i,
+                        'context': line.strip()
+                    })
+        
+        return calls
+    
+    def _extract_field_assignments(self, method_content: str) -> List[Dict]:
+        """Extract field assignments (field = new ClassName()) from method content"""
+        assignments = []
+        lines = method_content.split('\n')
+        
+        for i, line in enumerate(lines):
+            if line.strip().startswith('//') or line.strip().startswith('/*'):
+                continue
+                
+            matches = self.patterns['field_assignment'].finditer(line)
+            for match in matches:
+                field_name = match.group(1)
+                constructor_name = match.group(2)
+                if self._is_valid_constructor_call(constructor_name):
+                    assignments.append({
+                        'field': field_name,
+                        'constructor': constructor_name,
+                        'line_offset': i,
+                        'context': line.strip()
+                    })
+        
+        return assignments
+    
+    def _is_valid_constructor_call(self, constructor_name: str) -> bool:
+        """Validate constructor call name"""
+        keywords = {'if', 'for', 'while', 'switch', 'catch', 'this', 'super'}
+        return constructor_name not in keywords and not constructor_name.isupper() and constructor_name[0].isupper()
 
 
 class CodeGraph:

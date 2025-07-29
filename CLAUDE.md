@@ -9,12 +9,21 @@ use-mcp context7
 
 A Model Context Protocol (MCP) server that provides graph-enhanced code search capabilities by combining vector similarity search with code relationship analysis.
 
+## Status: TESTED & WORKING
+✅ MCP server correctly returns both [VECTOR] and [GRAPH] search results
+✅ Data is properly isolated to this project only (no external codebase data)
+✅ Graph visualization interface available at http://localhost:5001
+✅ Full MCP integration tested and verified
+
 ## Features
 
 - **Hybrid Search**: Combines vector similarity with code relationship graphs
 - **Code Understanding**: Analyzes imports, inheritance, and method calls
 - **Multi-hop Relations**: Finds related code through structural connections
 - **Java Support**: Specialized parsing for Java codebases
+- **MCP Integration**: Full Model Context Protocol server implementation
+- **Graph Visualization**: Interactive web interface for exploring code relationships
+- **Real-time Search**: Instant search across nodes and relationships
 
 ## Setup
 

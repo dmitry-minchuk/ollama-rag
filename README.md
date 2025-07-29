@@ -8,6 +8,8 @@ A Model Context Protocol (MCP) server that provides graph-enhanced code search c
 - **Code Understanding**: Analyzes imports, inheritance, and method calls
 - **Multi-hop Relations**: Finds related code through structural connections
 - **Java Support**: Specialized parsing for Java codebases
+- **MCP Integration**: Full Model Context Protocol server implementation
+- **Graph Visualization**: Interactive web interface for exploring code relationships
 
 ## Setup
 
@@ -30,7 +32,22 @@ A Model Context Protocol (MCP) server that provides graph-enhanced code search c
 
 ## Usage
 
-The server provides a single `code_search` tool that performs graph-enhanced code search:
+### MCP Server Integration
+
+The server provides a single `code_search` tool that performs graph-enhanced code search. Configure in your MCP client:
+
+```json
+{
+  "mcpServers": {
+    "ollama-rag": {
+      "command": "python",
+      "args": ["/path/to/ollama-rag/mcp_server.py"]
+    }
+  }
+}
+```
+
+### Direct Usage
 
 ```bash
 # Search for code with both vector similarity and graph relationships
@@ -43,6 +60,8 @@ echo '{"jsonrpc": "2.0", "method": "tools/call", "params": {"name": "code_search
 - **Code Graph**: NetworkX-based relationship graph for structural analysis
 - **Java Parser**: Extracts imports, inheritance, and method calls
 - **Hybrid Search**: Combines vector similarity with graph traversal
+- **MCP Protocol**: Standard Model Context Protocol for AI assistant integration
+- **Web Interface**: Flask-based visualization server for graph exploration
 
 ## Configuration
 
