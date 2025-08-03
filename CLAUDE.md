@@ -16,6 +16,7 @@ A Model Context Protocol (MCP) server that provides intelligent, query-aware gra
 ✅ **Relationship Context**: Full chain information with weights, line numbers, and code context
 ✅ **Backward Compatible**: All existing queries work unchanged with improved relevance
 ✅ **Performance Optimized**: Priority-queue graph traversal with relationship-type awareness
+🔧 **Continuous Improvement**: Based on user feedback (8.5/10 rating), roadmap includes relevance filtering, context building, and noise reduction enhancements
 
 ## Enhanced Features
 
@@ -160,3 +161,67 @@ Priority: 8.50
 - **Intelligent Prioritization** based on relationship types and query intent
 - **Enhanced Context** showing why results are related through code structure
 - **Backward Compatibility** maintaining existing query behavior
+
+## Improvement Roadmap
+
+### **📋 User Feedback Analysis**
+**Overall Rating: 8.5/10** - Highly effective for codebase research with specific areas for enhancement
+
+**✅ Current Strengths:**
+- Excellent at finding specific functions and implementations
+- Good relationship mapping between related modules  
+- Effective pattern matching for context-related code
+- Finds exact implementation details efficiently
+
+**⚠️ Identified Limitations:**
+1. **Too many unrelated database models** in search results
+2. **Graph relationships sometimes include low-relevance connections**
+3. **Requires multiple queries** to get complete picture of complex topics
+
+### **🚀 Planned Enhancements**
+
+#### **1. Enhanced Relevance Filtering**
+- **Content-Based Filtering**: Smart detection and filtering of database models, schemas, and configuration files when not relevant to query context
+- **File Type Scoring**: Implement scoring system that prioritizes source code files over configuration/data files based on query intent
+- **Semantic Relevance Threshold**: Add configurable thresholds to filter out results below certain similarity scores to reduce noise
+
+#### **2. Improved Graph Relationship Scoring**
+- **Context-Aware Relationship Weighting**: Weight relationships based on semantic similarity between connected files, not just structural connections
+- **Relationship Decay**: Implement decay function for multi-hop relationships to prevent distant, irrelevant connections from dominating results
+- **Smart Relationship Filtering**: Filter out common but low-value relationships (e.g., basic utility imports, common framework calls)
+
+#### **3. Query Expansion and Context Building**
+- **Automatic Follow-up Queries**: When initial results are sparse or incomplete, automatically expand search with semantically related terms
+- **Result Clustering**: Group related results together to provide comprehensive topic coverage in single response
+- **Context Summarization**: Add brief explanations of how results relate to each other and to the original query
+
+#### **4. Implementation Targets**
+
+**File: `mcp_server.py` Enhancements:**
+- Add `RelevanceFilter` class for intelligent content filtering
+- Enhance `RelationshipScoring` with context-aware weights and decay functions
+- Implement query expansion logic in `hybrid_search` method
+- Add result clustering and context summarization features
+
+**File: `ingest-code.py` Enhancements:**
+- Add file type classification and metadata extraction during indexing
+- Implement semantic metadata extraction for better filtering decisions
+- Improve relationship extraction with context scoring and relevance assessment
+
+**New Features:**
+- **Smart Query Processing**: Advanced intent detection and query optimization
+- **Result Explanation**: Provide explanations for why results were included/excluded
+- **Confidence Scoring**: Add confidence metrics for each result's relevance
+- **Context Bridging**: Automatically find and include missing context between results
+
+### **🎯 Expected Outcomes**
+- **Reduced Noise**: Significant reduction in irrelevant database models and low-value relationships
+- **Higher Precision**: More targeted results with better contextual relevance
+- **Improved User Experience**: Single queries provide more complete and coherent information
+- **Enhanced Relevance Ranking**: Results ordered by actual usefulness rather than just structural/semantic similarity
+
+### **📊 Success Metrics**
+- Target overall rating improvement from 8.5/10 to 9.5/10
+- Reduce false positive rate for database model inclusion by 70%
+- Increase query completion rate (single query provides complete context) by 60%
+- Maintain or improve current strengths while addressing identified limitations
