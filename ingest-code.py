@@ -12,10 +12,11 @@ from langchain.schema import Document
 
 # Configuration - Paths to codebases for indexing
 CODEBASE_PATHS = [
-#     "/Users/dmitryminchuk/Projects/eis/openl-tests",
-     "/Users/dmitryminchuk/Projects/java-taf-template",
-#     "/Users/dmitryminchuk/Projects/python-taf-bp",
+#    "/Users/dmitryminchuk/Projects/eis/openl-tests",
+#    "/Users/dmitryminchuk/Projects/java-taf-template",
+#    "/Users/dmitryminchuk/Projects/python-taf-bp",
 #    "/Users/dmitryminchuk/Projects/ai/mcp/ollama-rag",
+    "/Users/dmitryminchuk/Projects/trading-app",
 ]
 
 # Folders to exclude from indexing
